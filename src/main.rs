@@ -1,31 +1,40 @@
 extern crate glob;
-use slog::{Drain, o, info};
-use chrono::Local;
-
-use std::path::{Path};
-use fs::BasePath;
-
+mod app_config;
 mod fs;
+mod handlers;
 
+use crate::app_config::{AppConfig, AppState};
+use crate::handlers::*;
 
+use chrono::Local;
+use slog::info;
 
-fn main() {
+use actix_web::{middleware, web, App, HttpServer};
+use dotenv::dotenv;
 
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build();
-    let drain = std::sync::Mutex::new(drain).fuse();
-    
-    let root_logger = slog::Logger::root(drain, o!());
-    info!(root_logger, "Application started"; "started_at" => format!("{}", Local::now().to_rfc3339()));
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    dotenv().ok();
 
-    let mut dirs = fs::DirsMapper::new(&root_logger);
-    dirs.add_mapping("tmp", &Path::new("/tmp"));
+    let config = AppConfig::from_env().unwrap();
+    let log = AppConfig::configure_log();
+    info!(
+        log,
+        "Starting server at http://{}:{}  started at {}",
+        config.server.host,
+        config.server.port,
+        Local::now().to_rfc3339()
+    );
 
-    let bp: &BasePath = dirs.get("tmp").unwrap();
-    for item in bp.list() {
-        println!("{}", item);
-    }
-
-    let pth = Path::new("model.lock");
-    println!("{:?}", bp.get(pth));
+    HttpServer::new(move || {
+        App::new()
+            .data(AppState { log: log.clone() })
+            .wrap(middleware::Logger::default())
+            .route("/", web::get().to(index_handler))
+            .route("/list", web::get().to(list_files_handler))
+            .route("/file", web::get().to(get_file_handler))
+    })
+    .bind(format!("{}:{}", config.server.host, config.server.port))?
+    .run()
+    .await
 }
