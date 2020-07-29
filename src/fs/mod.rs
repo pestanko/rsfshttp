@@ -1,4 +1,7 @@
 mod fileinfo;
-mod basedir;
+mod basepath;
+mod dirmapper;
+mod path_wrapper;
 
-pub type BasePath = basedir::BasePath;
+pub type BasePath = basepath::BasePath;
+pub type DirsMapper = dirmapper::DirsMapper;

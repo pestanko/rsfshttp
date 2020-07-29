@@ -1,39 +1,14 @@
 use std::{
-    collections::HashMap,
-    fs::{self, DirEntry},
-    path::{Path, PathBuf}, io, fmt::Display,
+    fs::{self},
+    path::{Path, PathBuf}, fmt::Display,
 };
 
 use glob;
 use slog::{self, o};
 
-pub struct Dirs {
-    paths: HashMap<String, BasePath>,
-    logger: slog::Logger,
-}
+use pathdiff::diff_paths;
 
-impl Dirs {
-    pub fn new(logger: &slog::Logger) -> Self {
-        Self {
-            paths: HashMap::new(),
-            logger: logger.new(o!()),
-        }
-    }
 
-    pub fn add(&mut self, name: &str, dir: BasePath) -> &Dirs {
-        let name_str: String = String::from(name);
-        self.paths.insert(String::from(name), dir);
-        self
-    }
-
-    pub fn get(&self, name: &str) -> Option<&BasePath> {
-        self.paths.get(name)
-    }
-
-    pub fn into_basepath(&self, path: &Path) -> BasePath {
-       BasePath::new(path, &self.logger)
-    }
-}
 
 pub struct BasePath {
     path: PathBuf,
@@ -49,12 +24,24 @@ impl BasePath {
     }
 
     pub fn get(&self, path: &Path) -> Option<DirectoryEntry> {
-        let new_path = self.path.join(path);
-        if new_path.exists() {
-            Some(DirectoryEntry::from(new_path))
-        } else {
-            slog::debug!(self.logger, "path not found"; "path" => path.to_str());
-            None
+        match self.path.join(path).canonicalize() {
+            Ok(new_path) => {
+                if !is_forward_path(&new_path, &self.path) {
+                    slog::warn!(self.logger, "path is not forward found"; "path" => new_path.display(), "base" => self.path.display());
+                    None
+                }
+                else if new_path.exists() {
+                    slog::debug!(self.logger, "canonized path found"; "path" => new_path.display());
+                    Some(DirectoryEntry::from(new_path))
+                } else {
+                    slog::warn!(self.logger, "path not found"; "path" => path.display());
+                    None
+                }
+            }
+            Err(err) => {
+                slog::debug!(self.logger, "path canonicalize failed"; "path" => path.to_str(), "error" => err.to_string());
+                None
+            }
         }
     }
 
@@ -101,7 +88,8 @@ impl BasePath {
     }
 }
 
-#[derive(Clone, PartialEq)]
+
+#[derive(Clone, PartialEq,Debug)]
 pub enum DirectoryEntry {
     File(PathBuf),
     Dir(PathBuf),
@@ -139,4 +127,17 @@ impl Display for DirectoryEntry {
         }
     }
     
+}
+
+/**
+ *
+ * diff_paths(/etc/password, /tmp) ~> ../etc/passwd
+ * diff_paths(/tmp/ahoj/svet, /tmp) ~> ahoj/svet
+ */
+fn is_forward_path(pth: &Path, base_pth: &Path) -> bool {
+    if let Some(p) = diff_paths(pth, base_pth) {
+        let s = format!("{}", p.display());
+        return ! s.starts_with("../");
+    }
+    false
 }
