@@ -19,6 +19,7 @@ pathdiff = "0.2.0"
 
 # Logging
 slog = "2.5.2"
-slog-term = "2.5.0"
-slog-async = "2.4.0"
+slog-term = "2.6.0"
+slog-async = "2.5.0"
 slog-envlogger = "2.2.0"
+env_logger = "0.7.1"

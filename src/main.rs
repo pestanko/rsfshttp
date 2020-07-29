@@ -4,7 +4,6 @@ mod fs;
 mod handlers;
 
 use crate::app_config::{AppConfig, AppState};
-use crate::handlers::*;
 
 use chrono::Local;
 use slog::info;
@@ -27,12 +26,23 @@ async fn main() -> std::io::Result<()> {
     );
 
     HttpServer::new(move || {
+        // https://actix.rs/docs/url-dispatch/
         App::new()
             .data(AppState { log: log.clone() })
             .wrap(middleware::Logger::default())
-            .route("/", web::get().to(index_handler))
-            .route("/list", web::get().to(list_files_handler))
-            .route("/file", web::get().to(get_file_handler))
+            .route("/", web::get().to(handlers::index_handler))
+            .service(
+                web::scope("/api/v1").service(
+                    web::scope("/map")
+                    .route("/", web::get().to(handlers::list_mappings_handler))
+                    .route("/{mapping}/list", web::get().to(handlers::list_files_handler))
+                    .route("/{mapping}/file", web::get().to(handlers::get_file_handler))
+                    .route("/{mapping}/download", web::get().to(handlers::download_file_handler))
+                    .route("/{mapping}/path/{path:.*}", web::get().to(handlers::get_file_by_path_handler))
+                )
+               
+            )
+            
     })
     .bind(format!("{}:{}", config.server.host, config.server.port))?
     .run()
