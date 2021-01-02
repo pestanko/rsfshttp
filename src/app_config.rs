@@ -1,21 +1,75 @@
+use std::str::FromStr;
 
 pub use config::ConfigError;
-use serde::Deserialize;
-use slog::{o, Drain, Logger};
-use slog_async;
-use slog_envlogger;
-use slog_term;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AppConfig {
     pub server: ServerConfig,
+    pub mappings: Vec<MappingDefinition>,
 }
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ServerConfig {
     pub host: String,
     pub port: i32,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct MappingDefinition {
+    pub name: String,
+    pub path: String,
+    pub flags: MappingFlags,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct MappingFlags {
+    pub update: bool,
+    pub delete: bool,
+    pub create: bool,
+}
+
+impl FromStr for MappingFlags {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            update: s.contains('u'),
+            delete: s.contains('d'),
+            create: s.contains('c'),
+        })
+    }
+}
+
+impl Default for MappingFlags {
+    fn default() -> Self {
+        return MappingFlags { update: false, delete: false, create: false };
+    }
+}
+
+impl MappingDefinition {
+
+}
+
+impl FromStr for MappingDefinition {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split(";");
+        let name = parts.next().unwrap();
+        let path = parts.next().unwrap();
+        let mut flags = match parts.next() {
+            Some(fl) => MappingFlags::from_str(fl)?,
+            None => MappingFlags::default(),
+        };
+
+        Ok(Self {
+            name: name.into(),
+            path: path.into(),
+            flags,
+        })
+    }
 }
 
 
@@ -26,18 +80,9 @@ impl AppConfig {
         cfg.merge(config::Environment::new())?;
         cfg.try_into()
     }
-
-    pub fn configure_log() -> Logger {
-        env_logger::init();
-        let decorator = slog_term::TermDecorator::new().build();
-        let console_drain = slog_term::FullFormat::new(decorator).build().fuse();
-        let console_drain = slog_envlogger::new(console_drain);
-        let console_drain = slog_async::Async::new(console_drain).build().fuse();
-        slog::Logger::root(console_drain, o!("v" => env!("CARGO_PKG_VERSION")))
-    }
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub log: slog::Logger,
+    pub cfg: AppConfig,
 }

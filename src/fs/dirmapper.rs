@@ -16,18 +16,16 @@ impl DirsMapper {
     }
 
     pub fn add(&mut self, name: &str, dir: BasePath) -> &DirsMapper {
-        let name_str: String = String::from(name);
-        self.paths.insert(String::from(name), dir);
+        self.paths.insert(name.into(), dir);
         self
     }
 
     pub fn add_mapping(&mut self, name: &str, dir: &Path) -> &DirsMapper {
-        let name_str: String = String::from(name);
         debug!(self.logger, "Adding mapping"; "name" => name, "path" => dir.display());
         match dir.canonicalize() {
             Ok(d) => {
                 debug!(self.logger, "Adding canonized path"; "path" => d.display());
-                self.paths.insert(String::from(name), self.into_basepath(dir));
+                self.paths.insert(String::from(name), self.make_basepath(dir));
             }
             Err(err) => {
                 warn!(self.logger, "Unable to canonize"; "error" => err.to_string(), "path" => dir.display());
@@ -40,7 +38,7 @@ impl DirsMapper {
         self.paths.get(name)
     }
 
-    fn into_basepath(&self, path: &Path) -> BasePath {
+    fn make_basepath(&self, path: &Path) -> BasePath {
        BasePath::new(path, &self.logger)
     }
 

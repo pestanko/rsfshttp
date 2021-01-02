@@ -47,6 +47,18 @@ pub async fn list_files_handler(
     HttpResponse::Ok().body("Hello world from list files!")
 }
 
+
+pub async fn tree_files_handler(
+    state: web::Data<AppState>,
+    path: web::Path<MappingPath>,
+) -> impl Responder {
+    let sublog = state.log.new(o!(
+        "handler" => "tree_files", 
+        "mapping" => path.mapping.clone()));
+    debug!(sublog, "Tree files");
+    HttpResponse::Ok().body("Hello world from tree files!")
+}
+
 // OPTION for query:  q: web::Query<HashMap<String, String>>
 pub async fn get_file_handler(
     state: web::Data<AppState>,
